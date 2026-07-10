@@ -23,6 +23,30 @@ KeyboardManager* KeyboardManager::keyboardManagerObjectPtr;
 
 namespace
 {
+    // A RIDI_DEVICENAME path looks like "\\?\HID#<deviceId>#<instanceId>#<interfaceGuid>". Some
+    // virtual keyboards (e.g. Target_KIP) are assigned a fresh <instanceId> over time, which would
+    // break an exact-path match. Match on the stable prefix instead: everything up to the instance
+    // (the 2nd '#'). This keeps distinct keyboards apart while tolerating instance-id churn.
+    std::wstring NormalizeDevicePath(const std::wstring& path)
+    {
+        const size_t first = path.find(L'#');
+        if (first == std::wstring::npos)
+        {
+            return path;
+        }
+
+        const size_t second = path.find(L'#', first + 1);
+        if (second == std::wstring::npos)
+        {
+            return path;
+        }
+
+        return path.substr(0, second);
+    }
+}
+
+namespace
+{
     DWORD mainThreadId = {};
 }
 
@@ -82,21 +106,11 @@ KeyboardManager::KeyboardManager()
 
 void KeyboardManager::OnRawKeyEvent(const RawInputKeyboardTracker::KeyEvent& keyEvent)
 {
-    // Injected input (hDevice == NULL) includes KBM's own remap output; never drive switching on it.
-    if (keyEvent.injected || keyEvent.devicePath.empty())
+    // Ignore injected input (hDevice == NULL, incl. KBM's own remap output); decide on key-down
+    // only; and skip keys we can't attribute to a physical keyboard.
+    if (keyEvent.injected || !keyEvent.keyDown || keyEvent.devicePath.empty())
     {
         return;
-    }
-
-    // Track held keys so we don't switch profiles in the middle of a chord.
-    if (keyEvent.keyDown)
-    {
-        pressedKeys.insert(keyEvent.vkey);
-    }
-    else
-    {
-        pressedKeys.erase(keyEvent.vkey);
-        return; // decisions are made on key-down only
     }
 
     // Log the active keyboard when it changes (helps discover device paths for the profile map).
@@ -115,7 +129,7 @@ void KeyboardManager::OnRawKeyEvent(const RawInputKeyboardTracker::KeyEvent& key
     std::wstring target;
     {
         std::lock_guard<std::mutex> lock(deviceMapMutex);
-        auto it = deviceProfileMap.find(keyEvent.devicePath);
+        auto it = deviceProfileMap.find(NormalizeDevicePath(keyEvent.devicePath));
         if (it == deviceProfileMap.end())
         {
             return;
@@ -129,6 +143,13 @@ void KeyboardManager::OnRawKeyEvent(const RawInputKeyboardTracker::KeyEvent& key
         std::lock_guard<std::mutex> lock(activeProfileMutex);
         current = activeProfileName;
     }
+
+    Logger::trace(L"[autosw] target='{}' current='{}' pending='{}'x{} requested='{}'",
+                  target,
+                  current,
+                  pendingTarget,
+                  pendingCount,
+                  requestedProfile);
 
     if (target == current)
     {
@@ -145,13 +166,7 @@ void KeyboardManager::OnRawKeyEvent(const RawInputKeyboardTracker::KeyEvent& key
         return;
     }
 
-    // Defer switching while another key is held down (avoid breaking a combo mid-press).
-    if (pressedKeys.size() > 1)
-    {
-        return;
-    }
-
-    // Hysteresis: require a few consecutive clean keystrokes on the new keyboard before switching.
+    // Hysteresis: require a few consecutive keystrokes on the new keyboard before switching.
     if (target == pendingTarget)
     {
         ++pendingCount;
@@ -200,7 +215,7 @@ void KeyboardManager::LoadDeviceProfiles()
                     std::wstring profile{ entry.GetNamedString(L"profile", L"") };
                     if (!device.empty() && !profile.empty())
                     {
-                        map[device] = profile;
+                        map[NormalizeDevicePath(device)] = profile;
                     }
                 }
             }

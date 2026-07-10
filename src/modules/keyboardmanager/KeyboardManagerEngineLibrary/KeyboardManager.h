@@ -4,7 +4,6 @@
 #include <mutex>
 #include <string>
 #include <unordered_map>
-#include <unordered_set>
 
 #include <common/hooks/LowlevelKeyboardEvent.h>
 #include <common/utils/EventWaiter.h>
@@ -96,7 +95,6 @@ private:
     std::mutex activeProfileMutex;
 
     // Tracker-thread-only auto-switch policy state.
-    std::unordered_set<USHORT> pressedKeys;
     std::wstring pendingTarget;
     int pendingCount = 0;
     std::wstring requestedProfile;
