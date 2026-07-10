@@ -1,6 +1,23 @@
 # SPEC — KBM per-keyboard remap
 
-> ステータス: **壁打ち中（実装未着手）**。PLAN.md のユーザー確認事項が未回答のため、方式は未確定。
+> ステータス: **方式確定（2026-07-10）／実装は PoC 段階**。
+
+## 0. 決定（2026-07-10、ユーザー回答反映）
+
+- **「キーボード種別」の定義**: レイアウト（JIS/US 等）**と** 物理キーボード個体（Mac / Windows 等）の**両方**を対象。
+- **採用方式 = D'（プロファイル切替）**。「キー割当をキーボードごとに変える」の実体は
+  **remap 一式（プロファイル）を丸ごと切り替える**こと。切替トリガを二段構えにする:
+  1. **手動切替（MVP）**: 設定 UI / トレイ / ホットキーでアクティブプロファイルを選ぶ。**レース無し・確実**。
+  2. **自動切替（拡張）**: Raw Input(`WM_INPUT`) でアクティブに打鍵中のキーボードを検出し、
+     対応プロファイルへ自動切替。**既知の制約**: 切替直後の最初の1打鍵が旧プロファイルで処理されうる
+     （キーボードを持ち替えて打ち始める運用なら実害小）。
+- **やらないこと**: 「同一の打鍵ストリーム内で、キーごとにデバイスを見分けて抑制/書換を変える」厳密解。
+  これは #1460 の通りフィルタドライバ必須で、PowerToys 本体スコープ外。
+- 各プロファイルの remap は**従来どおり LL フックで抑制/書換**する（挙動は現行 KBM と同じ）。
+  “per-keyboard” は「どのプロファイルをアクティブにするか」を切り替えることで実現する。
+
+→ 以降の §2 表では **方式 B の“自動切替”部分を D' の拡張として取り込み**、
+  Bの弱点（毎打鍵のデバイス精度）は「プロファイル切替トリガの精度」に格下げして許容する。
 
 ## 1. 核心の技術的トレードオフ
 
@@ -53,5 +70,17 @@ Raw Input│   ×      │        │        ○         │
 
 ## 5. 未解決の設計問い
 - デバイスの安定した識別子は何にする？（VID/PID はモデル単位、同型2台を区別するにはシリアル/デバイスパスが要る。BT はシリアル取れないことも）
+  → **PoC で第一候補 VID/PID に確定気味**。実機で Apple(05AC)/Logitech(046D) を判別できた。同型2台問題が出たらデバイスパスのインスタンス部を併用。詳細は [poc/POC-RESULTS.md](poc/POC-RESULTS.md)。
 - プロファイル切替の発火条件（1打鍵で即切替？ 一定時間そのデバイスで打鍵継続を確認？）
-- 抑制なし方式では“remap 自体はデバイス非依存で全体に効く”ため、ユーザーの真の要望（デバイス別に別 remap）を満たせるか要確認 → PLAN.md 確認事項 #2 に直結。
+- ~~抑制なし方式では remap がデバイス非依存で全体に効く~~ → **プロファイル切替方式で解決**（アクティブプロファイルを切替 = 実効 remap を切替）。§0/§6 参照。
+
+## 6. 実装オリエンテーション（PoC 調査反映・2026-07-10）
+
+> 詳細な file:line と実機データは [poc/POC-RESULTS.md](poc/POC-RESULTS.md)。
+
+- **朗報: プロファイル切替の土台は既存**。KBM は `settings.json` の `activeConfiguration` に応じて `{name}.json` を読み、保存時イベントで**エンジンがホットリロード**する（`common/MappingConfiguration.cpp:410/450/652`）。実際は `"default"` のみ・切替 UI 無し。
+  → **MVP（手動切替）= 既存 named-config 機構を流用**。`activeConfiguration` を書き換えて reload イベントを叩くだけ。新規の設定永続化は不要。
+- **自動切替はエンジンにウィンドウ新設が必要**。エンジンはフックのみでウィンドウ無し（`KeyboardManagerEngine/main.cpp:17`, `run_message_loop`）。`WM_INPUT` は WndProc 必須なので **message-only window + `RegisterRawInputDevices(RIDEV_INPUTSINK)`** を追加する。
+  → 雛形: FancyZones `fancyzones/FancyZonesLib/KeyboardInput.cpp`（`RegisterRawInputDevices`/`GetRawInputData`）。
+- **ドライバ不要**を再確認（抑制は従来 LL フックのまま。per-keyboard はアクティブプロファイル切替で表現）。
+- Editor 側の足場: `EditorSettings.cs` に未配線の `ProfileDictionary`/`ActiveProfile` あり。UI 追加先は `Pages/MainPage.xaml(.cs)`、橋渡し `Interop/KeyboardMappingService.cs`。
