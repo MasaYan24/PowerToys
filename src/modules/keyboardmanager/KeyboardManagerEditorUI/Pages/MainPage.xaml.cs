@@ -1027,15 +1027,17 @@ namespace KeyboardManagerEditorUI.Pages
 
         private void LoadRemappings()
         {
+            // Clear first so switching to a profile with no remaps empties the list
+            // (rather than leaving the previous profile's entries on screen).
+            RemappingList.Clear();
+            DisabledList.Clear();
+
             SettingsManager.EditorSettings.ShortcutsByOperationType.TryGetValue(ShortcutOperationType.RemapShortcut, out var remapShortcutIds);
 
             if (remapShortcutIds == null)
             {
                 return;
             }
-
-            RemappingList.Clear();
-            DisabledList.Clear();
 
             foreach (var id in remapShortcutIds)
             {
@@ -1068,14 +1070,14 @@ namespace KeyboardManagerEditorUI.Pages
 
         private void LoadTextMappings()
         {
+            TextMappings.Clear();
+
             SettingsManager.EditorSettings.ShortcutsByOperationType.TryGetValue(ShortcutOperationType.RemapText, out var remapShortcutIds);
 
             if (remapShortcutIds == null)
             {
                 return;
             }
-
-            TextMappings.Clear();
 
             foreach (var id in remapShortcutIds)
             {
@@ -1097,14 +1099,14 @@ namespace KeyboardManagerEditorUI.Pages
 
         private void LoadProgramShortcuts()
         {
+            ProgramShortcuts.Clear();
+
             SettingsManager.EditorSettings.ShortcutsByOperationType.TryGetValue(ShortcutOperationType.RunProgram, out var remapShortcutIds);
 
             if (remapShortcutIds == null)
             {
                 return;
             }
-
-            ProgramShortcuts.Clear();
 
             foreach (var id in remapShortcutIds)
             {
@@ -1131,14 +1133,14 @@ namespace KeyboardManagerEditorUI.Pages
 
         private void LoadUrlShortcuts()
         {
+            UrlShortcuts.Clear();
+
             SettingsManager.EditorSettings.ShortcutsByOperationType.TryGetValue(ShortcutOperationType.OpenUri, out var remapShortcutIds);
 
             if (remapShortcutIds == null)
             {
                 return;
             }
-
-            UrlShortcuts.Clear();
 
             foreach (var id in remapShortcutIds)
             {
