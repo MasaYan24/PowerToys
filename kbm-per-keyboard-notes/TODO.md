@@ -30,17 +30,20 @@
 - [x] 切替機構をコードで検証: `activeConfiguration` 書換＋イベント signal でエンジンがライブ切替（エンジン改造不要）
 - [x] dev 環境を worktree 分離（`C:/dev/PowerToys-perkbd`）／既定=手動 確定
 - [x] Step A: 切替機構を実機で検証 ✅（test.json A→B で稼働中エンジンがライブ切替、即復元。IMPL.md 参照）
-- [ ] Step B: プロファイル管理モデル（Editor/C#）
-- [ ] Step C: 切替アクション（C# → settings.json + event）
-- [ ] Step D: Editor UI（プロファイル選択 ComboBox）
-- [ ] Step E: worktree ビルド＆実機テスト（初回 package restore）
-- [ ] （旧）**プロファイル概念の導入**（現状は単一 default.json）: プロファイル一覧＋アクティブプロファイル
-- [ ] 設定スキーマ（プロファイル、デバイス→プロファイル対応表）設計
-- [ ] Engine: アクティブプロファイル参照で remap 適用（既存フック経路に最小介入）
-- [ ] Engine: Raw Input 登録＋`WM_INPUT` 受信でプロファイル自動切替（拡張）
-- [ ] Editor(WinUI3): プロファイル選択ドロップダウン、検出キーボード一覧、手動切替
-- [ ] 単体テスト
-- [ ] devdocs 追記
+- [x] Step B: プロファイル管理モデル `ProfileManager.cs`（列挙/作成/削除/切替＋event signal）
+- [x] Step B2: SettingsManager をプロファイル対応（キャッシュ `editorSettings.{profile}.json`＋`ReloadForActiveProfile`）
+- [x] Step C: 切替アクション（C# → settings.json 書換＋event signal。ProfileManager 内）
+- [x] Step D: Editor UI（プロファイル選択 ComboBox＋新規/削除ダイアログ＋配線＋resw 多言語）
+- [x] **ビルド緑**（worktree、KeyboardManagerEditorUI.dll、警告なし）
+- [ ] Step E: 実機テスト（エディタ起動→作成/切替→remap がプロファイル単位で効くか。安定版を一旦止めて dev で。要ユーザー）
+
+## Phase 3.5: MVP 後の磨き込み
+- [ ] 新規作成の名前バリデーションを UI にインライン表示（現状は失敗時 log のみ）
+- [ ] プロファイル改名機能
+- [ ] settings.json 書込競合（PowerToys Settings と共有）の検証
+- [ ] editorSettings.json(default)→プロファイル cache の後方互換を実機確認
+- [ ] 自動切替（Engine に Raw Input + デバイス→プロファイル対応表）＝別フェーズ
+- [ ] 単体テスト / devdocs 追記
 
 ## Phase 4: コントリビュート（ブロッカー: CLA / 会社 IP 判断）
 - [ ] #12349 に設計コメント / 実装意向を投稿

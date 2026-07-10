@@ -41,6 +41,7 @@ namespace KeyboardManagerEditorUI.Pages
         private EditingItem? _editingItem;
         private string _mappingState = "Empty";
         private bool _isServiceRunning = true;
+        private bool _suppressProfileSelection;
 
         public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -122,6 +123,7 @@ namespace KeyboardManagerEditorUI.Pages
             if (_mappingService != null)
             {
                 LoadAllMappings();
+                LoadProfiles();
             }
             else
             {
@@ -152,6 +154,138 @@ namespace KeyboardManagerEditorUI.Pages
         {
             ServiceDownBanner.Visibility = IsServiceRunning ? Visibility.Collapsed : Visibility.Visible;
         }
+
+        #region Profile Management
+
+        private void LoadProfiles()
+        {
+            _suppressProfileSelection = true;
+            try
+            {
+                IReadOnlyList<string> profiles = ProfileManager.GetProfiles();
+                string active = ProfileManager.GetActiveProfile();
+
+                ProfileSelector.ItemsSource = profiles;
+                ProfileSelector.SelectedItem = profiles.Contains(active) ? active : (profiles.Count > 0 ? profiles[0] : null);
+                UpdateDeleteProfileButtonState();
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError("Failed to load profiles: " + ex.Message);
+            }
+            finally
+            {
+                _suppressProfileSelection = false;
+            }
+        }
+
+        private void UpdateDeleteProfileButtonState()
+        {
+            DeleteProfileBtn.IsEnabled = !string.Equals(
+                ProfileManager.GetActiveProfile(),
+                "default",
+                StringComparison.OrdinalIgnoreCase);
+        }
+
+        private void ProfileSelector_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (_suppressProfileSelection || _mappingService == null)
+            {
+                return;
+            }
+
+            if (ProfileSelector.SelectedItem is not string profile)
+            {
+                return;
+            }
+
+            if (string.Equals(profile, ProfileManager.GetActiveProfile(), StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            SwitchToActiveProfile(profile);
+        }
+
+        private void SwitchToActiveProfile(string profile)
+        {
+            try
+            {
+                if (!ProfileManager.SetActiveProfile(profile))
+                {
+                    Logger.LogWarning($"Failed to switch to profile '{profile}'");
+                    return;
+                }
+
+                RebuildForActiveProfile();
+                UpdateDeleteProfileButtonState();
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError("Error switching profile: " + ex.Message);
+            }
+        }
+
+        // Re-reads the now-active profile's config into a fresh native service and the editor cache.
+        private void RebuildForActiveProfile()
+        {
+            _mappingService?.Dispose();
+            _mappingService = new KeyboardMappingService();
+            SettingsManager.ReloadForActiveProfile();
+            LoadAllMappings();
+        }
+
+        private async void NewProfileBtn_Click(object sender, RoutedEventArgs e)
+        {
+            NewProfileNameBox.Text = string.Empty;
+            CopyCurrentProfileCheckBox.IsChecked = false;
+
+            if (await NewProfileDialog.ShowAsync() != ContentDialogResult.Primary)
+            {
+                return;
+            }
+
+            string name = NewProfileNameBox.Text.Trim();
+            if (string.IsNullOrEmpty(name))
+            {
+                return;
+            }
+
+            if (ProfileManager.CreateProfile(name, CopyCurrentProfileCheckBox.IsChecked == true))
+            {
+                LoadProfiles();
+
+                // Selecting the new profile triggers the switch through SelectionChanged.
+                ProfileSelector.SelectedItem = name;
+            }
+            else
+            {
+                Logger.LogWarning($"Could not create profile '{name}' (invalid name or already exists)");
+            }
+        }
+
+        private async void DeleteProfileBtn_Click(object sender, RoutedEventArgs e)
+        {
+            string active = ProfileManager.GetActiveProfile();
+            if (string.Equals(active, "default", StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            if (await DeleteProfileDialog.ShowAsync() != ContentDialogResult.Primary)
+            {
+                return;
+            }
+
+            if (ProfileManager.DeleteProfile(active))
+            {
+                // DeleteProfile falls back to the default profile; rebuild against it.
+                RebuildForActiveProfile();
+                LoadProfiles();
+            }
+        }
+
+        #endregion
 
         #region Dialog Show Methods
 
