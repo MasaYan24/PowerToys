@@ -1,8 +1,16 @@
 #pragma once
+#include <atomic>
+#include <memory>
+#include <mutex>
+#include <string>
+#include <unordered_map>
+#include <unordered_set>
+
 #include <common/hooks/LowlevelKeyboardEvent.h>
 #include <common/utils/EventWaiter.h>
 #include <keyboardmanager/common/Input.h>
 #include "State.h"
+#include "RawInputKeyboardTracker.h"
 
 class KeyboardManager
 {
@@ -14,6 +22,12 @@ public:
 
     ~KeyboardManager()
     {
+        // Stop the tracker first so its thread can't call back into a half-destroyed object.
+        if (rawInputTracker)
+        {
+            rawInputTracker->Stop();
+        }
+
         if (editorIsRunningEvent)
         {
             CloseHandle(editorIsRunningEvent);
@@ -54,6 +68,41 @@ private:
     std::atomic_bool loadingSettings = false;
 
     HANDLE editorIsRunningEvent = nullptr;
+
+    // Detects which physical keyboard is being typed on, for per-keyboard profile auto-switching.
+    std::unique_ptr<RawInputKeyboardTracker> rawInputTracker;
+
+    // Called (on the tracker thread) for each raw keyboard event.
+    void OnRawKeyEvent(const RawInputKeyboardTracker::KeyEvent& keyEvent);
+
+    // Reload the device->profile map and the auto-switch enable flag from deviceProfiles.json.
+    void LoadDeviceProfiles();
+
+    // Make the given profile active by writing settings.json + signaling the settings-changed
+    // event, so the existing reload path applies it (avoids a second thread mutating `state`).
+    void SwitchActiveProfile(const std::wstring& profile);
+
+    // Number of consecutive clean keystrokes on a keyboard before its profile is auto-selected
+    // (hysteresis to avoid thrashing when two keyboards are used in quick alternation).
+    static constexpr int AutoSwitchThreshold = 2;
+
+    // Auto-switch config (shared with the tracker thread; guarded).
+    std::atomic_bool autoSwitchEnabled{ false };
+    std::unordered_map<std::wstring, std::wstring> deviceProfileMap;
+    std::mutex deviceMapMutex;
+
+    // The currently active profile name, updated on every settings load. Read on the tracker thread.
+    std::wstring activeProfileName;
+    std::mutex activeProfileMutex;
+
+    // Tracker-thread-only auto-switch policy state.
+    std::unordered_set<USHORT> pressedKeys;
+    std::wstring pendingTarget;
+    int pendingCount = 0;
+    std::wstring requestedProfile;
+
+    // Last keyboard seen, logged on change to help discover device paths for the profile map.
+    std::wstring lastSeenDevice;
 
     // Hook procedure definition
     static LRESULT CALLBACK HookProc(int nCode, WPARAM wParam, LPARAM lParam);
