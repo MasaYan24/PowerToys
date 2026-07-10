@@ -9,6 +9,20 @@
 - 抑制が不要な「レイアウト/プロファイル自動切替」なら Raw Input のみで現実的（#12349 の方向）。
 - デバイス識別子: VID/PID は“モデル”単位。同型2台の区別にはシリアル or デバイスパスが要る。BT はシリアル欠落することあり。
 
+## エディタ実機テスト（Step E）で判明したこと
+- **dev ビルドのエディタ起動には DLL パス対応が必須**。exe は `x64\Debug\WinUI3Apps\` にあるが、
+  ネイティブラッパー `PowerToys.KeyboardManagerEditorLibraryWrapper.dll` とその依存(`PowerToys.Interop.dll`)は
+  親の `x64\Debug\` にある → そのまま起動すると `0x8007007E`（module not found）で `_mappingService` が null 化。
+  症状: マッピングが表示されない（「Nothing mapped yet」）＋切替ハンドラが `_mappingService==null` で早期 return（切替が効かない）。
+  → **回避**: 起動前に `$env:PATH = "C:\dev\PowerToys-perkbd\x64\Debug;$env:PATH"` してから exe を起動（WorkingDirectory も x64\Debug に）。
+  （製品版ではランナーがパスを解決するので問題にならない。dev 実行時のみ。）
+- **切替時の表示クリア忘れバグ（修正済 634bedc3d）**: `LoadRemappings/LoadTextMappings/LoadProgramShortcuts/LoadUrlShortcuts` は
+  そのタイプが空だと `.Clear()` の前に early return していた → 空プロファイルに切り替えると旧一覧が残る。
+  → **null チェックの前に必ずリストを Clear** する。
+- エディタは引数不要で単体起動可（`App.xaml.cs` OnLaunched が MainWindow を作るだけ）。ランナー/安定版エンジンを止める必要なし
+  （稼働中エンジンがそのまま reload イベントに反応）。安定版の「設定エディタ」だけは同時に開かない。
+- テスト時は毎回 config をバックアップ（`_stepE-backup-*`）。復元は settings.json を戻す＋reload イベント signal。
+
 ## プロファイル切替の実装知識（Step A で実証）
 - **切替 = settings.json の `activeConfiguration.value` を別名に書換 → イベント signal**。エンジンは即ライブ切替（改造不要）。
 - イベント名: **`PowerToys_KeyboardManager_Event_Settings`**（`common/KeyboardManagerConstants.h` の `SettingsEventName`）。

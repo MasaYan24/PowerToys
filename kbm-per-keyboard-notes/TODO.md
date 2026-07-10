@@ -35,9 +35,11 @@
 - [x] Step C: 切替アクション（C# → settings.json 書換＋event signal。ProfileManager 内）
 - [x] Step D: Editor UI（プロファイル選択 ComboBox＋新規/削除ダイアログ＋配線＋resw 多言語）
 - [x] **ビルド緑**（worktree、KeyboardManagerEditorUI.dll、警告なし）
-- [ ] Step E: 実機テスト（エディタ起動→作成/切替→remap がプロファイル単位で効くか。安定版を一旦止めて dev で。要ユーザー）
+- [x] **Step E: 実機テスト完了 ✅**（作成→切替→remap 追加(a→b)→往復→削除、全て想定通り。エンジン＋UI 両方が切替）
+  - 過程で2バグ発見・修正: (1) dev 起動の DLL パス（PATH=x64\Debug で回避）、(2) 空プロファイルで一覧クリア漏れ（634bedc3d で修正）
 
 ## Phase 3.5: MVP 後の磨き込み
+- [ ] dev 起動を簡単化（DLL を WinUI3Apps へコピー or 起動スクリプト）※製品版は不要
 - [ ] 新規作成の名前バリデーションを UI にインライン表示（現状は失敗時 log のみ）
 - [ ] プロファイル改名機能
 - [ ] settings.json 書込競合（PowerToys Settings と共有）の検証
