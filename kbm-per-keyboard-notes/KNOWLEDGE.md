@@ -9,6 +9,26 @@
 - 抑制が不要な「レイアウト/プロファイル自動切替」なら Raw Input のみで現実的（#12349 の方向）。
 - デバイス識別子: VID/PID は“モデル”単位。同型2台の区別にはシリアル or デバイスパスが要る。BT はシリアル欠落することあり。
 
+## 自動切替（エンジン Raw Input）実機テストで判明したこと（2026-07-11）
+
+- **デバイスパスは必ずしも安定ではない（重要）**: 仮想プロバイダ系キーボード（実機の2台目 = `Target_KIP&Category_HID`）は
+  RIDI_DEVICENAME の **インスタンスID が時々変わる**（`...Col01#4&1d10d7d2&0&0000#...` ↔ `...#4&31ee05e0&0&0000#...`）。
+  フルパス完全一致だと、変わった瞬間に未登録扱い→切替されず**プロファイルが固まる**（「たまに戻る/ほぼ戻らない」の正体）。
+  → **対策: マッチングを安定プレフィックス（2番目の `#` まで＝インスタンスID を除く）に正規化**（`NormalizeDevicePath`）。
+    `\\?\HID#Target_KIP&Category_HID&Col01` や `\\?\HID#{container}_VID&..._PID&...&Col01` で一致させる。
+  → **副作用（既知の制約）**: 同一モデル2台はインスタンスID でしか区別できないため正規化で同一視される。MVP は許容、SPEC 制約に追記。
+- **「キー保持中は切替保留」の集合追跡は仮想デバイスで破綻**: keyup が取りこぼされ pressedKeys が枯れず、`held>1` ガードが
+  ヒステリシス加算より前にあったため **pending が進まず永久ブロック**。→ **defer-while-held を撤去し、ヒステリシス（連続N打鍵）のみ**に。
+  defer は将来 `GetAsyncKeyState`（モディファイア実状態）で堅牢に再実装（Phase 3.5）。
+- **診断手法**: `[autosw] target=.. current=.. pending=..xN requested=..` を毎打鍵 trace で出すと切替判定の内部状態が丸見え。
+  原因特定に極めて有効だった（PR 前に削除予定）。`Detected keyboard: <path>` は device path 収集に有用。
+- **エンジンの dev テスト手順**: 安定版 PowerToys（runner+engine）を止める→dev エンジン `x64\Debug\KeyboardManagerEngine\...exe` を
+  `$env:PATH="...\x64\Debug;$env:PATH"` ＋ WorkingDirectory=x64\Debug で起動（依存 DLL のため）。単一インスタンス mutex があるので
+  安定版エンジンとは同時起動不可。engine ログ: `%LOCALAPPDATA%\...\Keyboard Manager\Engine\Logs\vX\log_*.log`。
+  復元: config を backup から戻す＋`Stop-Process -Name PowerToys*`＋安定版 `C:\dev\PowerToys\x64\Release\PowerToys.exe` を再起動。
+- 自動切替 = 「settings.json の activeConfiguration 書換＋`PowerToys_KeyboardManager_Event_Settings` signal」で既存リロード経路を再利用（state を別スレッドで触らない）。実装で機能した。
+- deviceProfiles.json 形式: `{"autoSwitchEnabled":bool,"map":[{"device":"<RIDI path>","profile":"<name>"}]}`。engine が LoadSettings のたびに再読込。
+
 ## エディタ実機テスト（Step E）で判明したこと
 - **dev ビルドのエディタ起動には DLL パス対応が必須**。exe は `x64\Debug\WinUI3Apps\` にあるが、
   ネイティブラッパー `PowerToys.KeyboardManagerEditorLibraryWrapper.dll` とその依存(`PowerToys.Interop.dll`)は

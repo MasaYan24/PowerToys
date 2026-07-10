@@ -38,13 +38,24 @@
 - [x] **Step E: 実機テスト完了 ✅**（作成→切替→remap 追加(a→b)→往復→削除、全て想定通り。エンジン＋UI 両方が切替）
   - 過程で2バグ発見・修正: (1) dev 起動の DLL パス（PATH=x64\Debug で回避）、(2) 空プロファイルで一覧クリア漏れ（634bedc3d で修正）
 
+## Phase 4a: 自動切替（Engine Raw Input）— 実装済み・最終検証待ち
+- [x] Increment 1: `RawInputKeyboardTracker`（専用スレッド＋隠しウィンドウ＋RIDEV_INPUTSINK）→ 実機で検出成功
+- [x] Increment 2: 自動切替ポリシー（NULL無視／ヒステリシス／device→profile map／settings書換+signal で切替）
+- [x] 実機テスト（安定版停止→dev エンジン）: **切替は動作を確認**（Apple→mac / 2台目→default の Auto-switch 記録）
+- [x] バグ修正: (a) 仮想デバイスの**インスタンスID 揺れ**→パス正規化(`NormalizeDevicePath`)、(b) pressedKeys 枯れず永久ブロック→defer 撤去
+- [ ] **★再開ポイント: 正規化修正(d30f25ea6)を実機で再検証**（Apple⇔2台目を何度往復しても確実に切り替わるか）
+      手順: 安定版停止→dev エンジン起動→mac.json/deviceProfiles.json 用意→自動切替 ON→往復テスト（KNOWLEDGE.md 参照）
+- [ ] 検証OK後: `[autosw]` 診断 trace を削除
+- [ ] Increment 3: エディタ UI（検出キーボード一覧＋device→profile 割当＋自動切替 ON/OFF トグル→deviceProfiles.json 書込＋signal）
+- [ ] SPEC §7 に「同一モデル2台は正規化で同一視」の制約を追記
+
 ## Phase 3.5: MVP 後の磨き込み
 - [ ] dev 起動を簡単化（DLL を WinUI3Apps へコピー or 起動スクリプト）※製品版は不要
 - [ ] 新規作成の名前バリデーションを UI にインライン表示（現状は失敗時 log のみ）
 - [ ] プロファイル改名機能
-- [ ] settings.json 書込競合（PowerToys Settings と共有）の検証
+- [ ] settings.json 書込競合（PowerToys Settings / エディタ / エンジン自動切替が共有）の検証
 - [ ] editorSettings.json(default)→プロファイル cache の後方互換を実機確認
-- [ ] 自動切替（Engine に Raw Input + デバイス→プロファイル対応表）＝別フェーズ
+- [ ] defer-while-held を GetAsyncKeyState で堅牢に再実装（撤去済みのため）
 - [ ] 単体テスト / devdocs 追記
 
 ## Phase 4: コントリビュート（ブロッカー: CLA / 会社 IP 判断）

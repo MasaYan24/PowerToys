@@ -108,3 +108,22 @@
 - エンジン監視: `KeyboardManagerEngineLibrary/KeyboardManager.cpp:73`/`:38-70`/`:76`。
 - 既定名 "default": `common/KeyboardManagerConstants.h`。
 - Editor 足場: `KeyboardManagerEditorUI/Settings/EditorSettings.cs:14/18`, `Settings/SettingsManager.cs`, `Interop/KeyboardMappingService.cs`, `Pages/MainPage.xaml(.cs)`。
+
+## 5. 自動切替（Engine Raw Input）— 実装リファレンス（2026-07-11）
+
+新規/変更（`KeyboardManagerEngineLibrary`, tip d30f25ea6）:
+- `RawInputKeyboardTracker.{h,cpp}`（新規）: 専用スレッドで隠しウィンドウ＋`RegisterRawInputDevices(RIDEV_INPUTSINK)` →
+  `WM_INPUT` を受信し、`{devicePath, vkey, keyDown, injected}` をコールバック。抑制はしない。
+- `KeyboardManager`:
+  - `rawInputTracker` を ctor で生成・Start、dtor で Stop（コールバックは tracker スレッド）。
+  - `LoadDeviceProfiles()`: `deviceProfiles.json`（`{autoSwitchEnabled, map:[{device,profile}]}`）を読み、
+    `map[NormalizeDevicePath(device)] = profile` を保持。`LoadSettings()` のたびに再読込。
+  - `OnRawKeyEvent()`: injected/keyup/パス無しは無視 → `NormalizeDevicePath` で map 照合 →
+    `activeProfileName`(= `state.currentConfig`, LoadSettings で更新) と比較 → ヒステリシス（`AutoSwitchThreshold=2`）→
+    `SwitchActiveProfile(target)`。
+  - `SwitchActiveProfile()`: settings.json の activeConfiguration を JsonNode 相当（`json::JsonObject`）で書換 →
+    `PowerToys_KeyboardManager_Event_Settings` を signal → **既存リロード経路**が新プロファイルを適用（state を別スレッドで触らない）。
+  - `NormalizeDevicePath()`: RIDI_DEVICENAME を 2番目の `#` まで（インスタンスID を除く）に正規化。仮想デバイスの ID 揺れ対策。
+- **状態**: 切替は実機で動作確認済み。正規化修正は実装済みだが**最終再検証は中断で保留**（TODO Phase 4a の★再開ポイント）。
+- **未実装**: エディタ側の割当 UI（Increment 3）。今は `deviceProfiles.json` を手書き。
+- **要削除（PR前）**: `[autosw]` 毎打鍵 trace（診断用）。
