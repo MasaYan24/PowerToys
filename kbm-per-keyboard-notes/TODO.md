@@ -26,8 +26,15 @@
 - [ ] 自動 vs 手動の**既定**をユーザーと確定（現状 手動MVP＋自動任意 を推奨）
 - [ ] 仮想/合成キーボード除外・コレクション重複排除のロジック確認
 
-## Phase 3: 実装（未着手）
-- [ ] **プロファイル概念の導入**（現状は単一 default.json）: プロファイル一覧＋アクティブプロファイル
+## Phase 3: 実装（計画済 → [IMPL.md](IMPL.md)）
+- [x] 切替機構をコードで検証: `activeConfiguration` 書換＋イベント signal でエンジンがライブ切替（エンジン改造不要）
+- [x] dev 環境を worktree 分離（`C:/dev/PowerToys-perkbd`）／既定=手動 確定
+- [ ] Step A: 切替機構を実機で検証（default.json / mac.json 手動切替）
+- [ ] Step B: プロファイル管理モデル（Editor/C#）
+- [ ] Step C: 切替アクション（C# → settings.json + event）
+- [ ] Step D: Editor UI（プロファイル選択 ComboBox）
+- [ ] Step E: worktree ビルド＆実機テスト（初回 package restore）
+- [ ] （旧）**プロファイル概念の導入**（現状は単一 default.json）: プロファイル一覧＋アクティブプロファイル
 - [ ] 設定スキーマ（プロファイル、デバイス→プロファイル対応表）設計
 - [ ] Engine: アクティブプロファイル参照で remap 適用（既存フック経路に最小介入）
 - [ ] Engine: Raw Input 登録＋`WM_INPUT` 受信でプロファイル自動切替（拡張）
