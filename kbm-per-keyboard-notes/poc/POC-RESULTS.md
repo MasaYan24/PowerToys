@@ -58,6 +58,27 @@
   - 既知の制約は SPEC.md §0 の通り（切替直後の最初の1打鍵レース）。
 - ドライバは不要（抑制は従来 LL フックのまま。per-keyboard はアクティブプロファイルの切替で表現）。
 
-## 4. 生成物
-- `poc/enum_keyboards.cpp` — 列挙 PoC ソース（両 VID/PID 形式対応）。
-- `poc/enum_keyboards.exe` — ビルド済み（実行して上表を取得）。※バイナリは Git 追跡外推奨。
+## 4. 検出 PoC（`detect_active_keyboard.cpp`）— 打鍵時のリアルタイム判別
+
+hidden window + `RegisterRawInputDevices(RIDEV_INPUTSINK)` + `WM_INPUT` で、打鍵ごとに `header.hDevice` から
+デバイスを特定。デバイスが変わるたびバナー表示（＝プロファイル切替が発火する箇所）。実機で確認:
+
+| 打鍵元 | ラベル | 安定ID（RIDI_DEVICENAME パス） |
+|---|---|---|
+| Apple | Apple Wireless Keyboard [VID 05AC/PID 0239] | `\\?\HID#{...}_VID&000205ac_PID&0239&Col01#8&20a375a3&...`（一意・安定） |
+| 2台目 | (VID/製品名なし) | `\\?\HID#Target_KIP&Category_HID&Col01#4&1d10d7d2&...`（一意・安定） |
+| 注入入力 | synthetic/injected | `hDevice = NULL`（パス空） |
+
+### 検出 PoC で判明した設計上の要点
+1. **識別キー = `RIDI_DEVICENAME` のデバイスパス文字列**。常に存在し一意。VID/PID・製品名が取れない
+   キーボード（2台目 `Target_KIP`）でも安定して区別できた。VID/PID/製品名は「人間可読ラベル」に格下げ。
+2. **注入キーは `hDevice == NULL`**。KBM が remap で送出するキーもこれで戻る。
+   → **NULL では絶対にプロファイルを切り替えない**（現プロファイル維持）。守らないと自己出力が切替を誘発して破綻。
+3. **列挙(`GetRawInputDeviceList`)と打鍵時 `hDevice` が一致しないことがある**。今回 enum は Logitech(046D) を
+   挙げたが実打鍵は `Target_KIP`（プロバイダ経由で集約）。→ UI の「検出キーボード一覧」は**列挙＋実打鍵の両方から学習**する。
+   逆に、**複数キーボードが1プロバイダ配下に集約される環境では個別区別できない**ことがある（制約として明記）。
+
+## 5. 生成物
+- `poc/enum_keyboards.cpp` — 列挙 PoC（USB/BT 両 VID/PID 形式対応）。
+- `poc/detect_active_keyboard.cpp` — 打鍵時リアルタイム判別 PoC（パス＝安定ID を出力、NULL 注入検出）。
+- `*.exe/*.obj` はビルド生成物（`.gitignore` で Git 追跡外）。

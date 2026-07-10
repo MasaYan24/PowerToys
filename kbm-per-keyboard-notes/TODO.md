@@ -20,8 +20,10 @@
 - [x] 既存 KBM コード構造の把握 → activeConfiguration 機構＋ホットリロードが既存（POC-RESULTS.md §2）
 - [x] Raw Input でキーボード列挙 PoC（`enum_keyboards.cpp` ビルド＆実行）
       → 実機で Apple(05AC)/Logitech(046D) を判別。USB/BT 両形式パース対応（POC-RESULTS.md §1）
-- [x] デバイス安定識別子: 第一候補 VID/PID に確定気味（同型2台はデバイスパス併用）
-- [ ] `WM_INPUT` でアクティブキーボード検出の最小 PoC（自動切替トリガ検証。message-only window 新設が要る）
+- [x] デバイス安定識別子: **RIDI_DEVICENAME パスを主キーに確定**（VID/PID 無しデバイスも安定区別。表示用に VID/PID/製品名）
+- [x] `WM_INPUT` でアクティブキーボード検出 PoC（`detect_active_keyboard.cpp`）→ 実機で Apple⇔2台目を判別（POC-RESULTS.md §4）
+- [x] 2台同時接続の設計方針を確定（SPEC §7）: 手動MVP＋自動はヒステリシス、NULL注入無視、列挙＋実打鍵で学習 等
+- [ ] 自動 vs 手動の**既定**をユーザーと確定（現状 手動MVP＋自動任意 を推奨）
 - [ ] 仮想/合成キーボード除外・コレクション重複排除のロジック確認
 
 ## Phase 3: 実装（未着手）
