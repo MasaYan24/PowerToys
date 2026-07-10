@@ -52,6 +52,52 @@
 - stable PT を終了 → dev ビルド起動 → プロファイル作成・切替が効くか確認 → stable 復帰。
 - KBM config は事前バックアップ。
 
+## 2.5 設計確定: 手動切替 MVP は「C# エディタ側だけ」で完結（コード確認済み）
+
+エディタの読み書き経路を確認（`KeyboardManagerEditorUI/Interop/KeyboardMappingService.cs`）:
+- `new KeyboardMappingService()` → `KeyboardManagerInterop.CreateMappingConfiguration()` + `LoadMappingSettings()`
+  → native `MappingConfiguration::LoadSettings()` = **activeConfiguration に従い `{name}.json` を読む**。
+- `SaveSettings()` → native `SaveSettingsToFile()` = `{name}.json` 保存＋リロードイベント signal。
+- エディタ自身の `editorSettings.json`（`SettingsManager.cs`）は**表示キャッシュ**で、native service から再構築できる
+  （`CreateSettingsFromKeyboardManagerService()`）。
+
+→ **エンジンもネイティブラッパーも改造不要。** プロファイル切替は C# 側で:
+1. `SettingsManager._settingsDirectory\settings.json` の `activeConfiguration.value` を書換＋`keyboardConfigurations.value` に名前追加。
+2. `EventWaitHandle.OpenExisting("PowerToys_KeyboardManager_Event_Settings").Set()` で signal（Step A と同手法）。
+3. `KeyboardMappingService` を作り直し（新アクティブ設定を読む）→ `editorSettings.json` キャッシュを再構築 → UI 更新。
+- 新規プロファイル作成 = `{name}.json`（空 or 複製）を作り、`keyboardConfigurations` に追加。
+
+## 2.6 設計確定: プロファイル単位のエディタキャッシュ（その場しのぎ回避）
+
+`MainPage.xaml.cs` / `SettingsManager.cs` 確認の結果:
+- エディタの表示は `SettingsManager.EditorSettings`（= `editorSettings.json`）から構築される（`LoadAllMappings`）。
+  このキャッシュは **単一共有ファイル**で、プロファイルの概念が無い。
+- native `KeyboardMappingService` は**アクティブな `{name}.json`** を読み書きする（source of truth）。
+
+**課題**: プロファイルを切り替えても `editorSettings.json` が旧プロファイルのまま → 表示不整合。
+
+**確定方針（堅実解・その場しのぎ回避）**:
+- **エディタキャッシュもプロファイル単位にする**: `editorSettings.json` → **`editorSettings.{profile}.json`**。
+  engine の `{name}.json` と1対1対応させ、プロファイル間の混線を構造的に防ぐ。
+- プロファイル切替の完全フロー（editor 内）:
+  1. `ProfileManager.SetActiveProfile(name)`: settings.json の `activeConfiguration` 書換＋`keyboardConfigurations` 追加＋保存＋reload イベント signal。
+  2. `_mappingService` を作り直す（新アクティブ `{name}.json` を読む）。
+  3. `SettingsManager` のアクティブプロファイルを切替 → `editorSettings.{name}.json` を読む（無ければ native service から再構築して保存）。
+  4. `LoadAllMappings()` で UI 更新。
+- 新規プロファイル = 空の有効 config `{name}.json`（`{"remapKeys":{"inProcess":[]},"remapKeysToText":{"inProcess":[]},"remapShortcuts":{"global":[],"appSpecific":[]},"remapShortcutsToText":{"global":[],"appSpecific":[]}}`）を作成＋`keyboardConfigurations` 追加。
+
+## 2.7 ProfileManager API（新規・UI 非依存の核）
+
+`KeyboardManagerEditorUI/Settings/ProfileManager.cs`（新規, static）:
+- `IReadOnlyList<string> GetProfiles()` — settings.json の `keyboardConfigurations` を読む（無ければ `{*}.json` 走査、常に `default` を含む）。
+- `string GetActiveProfile()` — settings.json の `activeConfiguration`（既定 `default`）。
+- `bool SetActiveProfile(string name)` — activeConfiguration 書換＋list 追加＋保存＋`SignalEngineReload()`。
+- `bool CreateProfile(string name, bool copyFromActive)` — `{name}.json` 作成（空 or 複製）＋list 追加＋保存。
+- `bool DeleteProfile(string name)` — `{name}.json` と `editorSettings.{name}.json` 削除＋list 除去。アクティブだったら `default` へ切替。
+- `void SignalEngineReload()` — `EventWaitHandle.OpenExisting("PowerToys_KeyboardManager_Event_Settings").Set()`（Step A と同手法）。
+- settings.json はスキーマ保全のため **JsonNode で外科的に**編集（未知プロパティを壊さない）。
+- 既知の注意: settings.json は PowerToys Settings も所有。編集競合の可能性は今後の論点（§3）。
+
 ## 3. 未解決の実装論点
 - Editor の `editorSettings.json`（独自ストア）と engine の `{name}.json`（プロファイル実体）の対応をどう持つか。プロファイル切替時に Editor 側ストアもプロファイル単位で分ける必要があるか。
 - settings.json の `activeConfiguration` を Editor プロセスから安全に書く方法（誰が所有権を持つか、書込競合）。
