@@ -29,7 +29,7 @@
 ## Phase 3: 実装（計画済 → [IMPL.md](IMPL.md)）
 - [x] 切替機構をコードで検証: `activeConfiguration` 書換＋イベント signal でエンジンがライブ切替（エンジン改造不要）
 - [x] dev 環境を worktree 分離（`C:/dev/PowerToys-perkbd`）／既定=手動 確定
-- [ ] Step A: 切替機構を実機で検証（default.json / mac.json 手動切替）
+- [x] Step A: 切替機構を実機で検証 ✅（test.json A→B で稼働中エンジンがライブ切替、即復元。IMPL.md 参照）
 - [ ] Step B: プロファイル管理モデル（Editor/C#）
 - [ ] Step C: 切替アクション（C# → settings.json + event）
 - [ ] Step D: Editor UI（プロファイル選択 ComboBox）

@@ -22,11 +22,17 @@
 
 ## 2. 実装ステップ（小さく縦切り）
 
-### Step A: 切替機構の実地検証（コード前・手動）
-- KBM フォルダに `default.json` と `mac.json`（別 remap）を用意。
-- settings.json の `activeConfiguration` を `mac` に書換 → イベント signal（小ツール or 既存 Save 経路）。
-- **エンジンが mac.json の remap に切り替わることを実機確認**（stable PT を止めて dev で）。
-- → 土台前提の最終確証。ダメなら設計見直し。
+### Step A: 切替機構の実地検証（✅ 完了 2026-07-11）
+- **稼働中の安定版エンジン（ビルド不要）で実証成功。**
+- 手順（実施済み）:
+  1. KBM フォルダを丸ごとバックアップ。
+  2. `test.json` を作成（`{"remapKeys":{"inProcess":[{"originalKeys":"65","newRemapKeys":"66"}]},...}` = A→B のみ）。
+  3. `settings.json` の `activeConfiguration.value` を `"test"` に書換、`keyboardConfigurations.value` に `"test"` 追加。
+  4. 名前付きイベント **`PowerToys_KeyboardManager_Event_Settings`** を signal（.NET `EventWaitHandle.OpenExisting(name).Set()`）。
+  5. → **`a` を打つと `b` が出力／日常 remap は消滅**を確認 = プロファイルが丸ごとライブ切替した。
+  6. バックアップから settings.json 復元＋test.json 削除＋再 signal で**完全復帰**。
+- **結論: エンジン改造ゼロでライブ切替できる。** MVP はこの経路（activeConfiguration 書換＋event signal）を Editor から呼ぶだけ。
+- 既存の `keyboardConfigurations`（settings.json 内のプロファイル名一覧）が**プロファイルリストの器として既存**なのも確認。
 
 ### Step B: プロファイル管理モデル（Editor/C#）
 - プロファイル一覧 = KBM フォルダ内の `*.json`（`editorSettings.json` は除外）。アクティブ = settings.json の `activeConfiguration`。
