@@ -45,7 +45,6 @@ namespace KeyboardManagerEditorUI.Pages
         private RawInputWatcher? _autoSwitchWatcher;
         private ObservableCollection<KeyboardAssignmentRow>? _keyboardRows;
         private List<string> _autoSwitchProfiles = new();
-        private IReadOnlyDictionary<string, string> _autoSwitchAssignments = new Dictionary<string, string>();
         private string _notAssignedLabel = string.Empty;
 
         public event PropertyChangedEventHandler? PropertyChanged;
@@ -297,12 +296,20 @@ namespace KeyboardManagerEditorUI.Pages
             // Available choices per keyboard: "(not assigned)" + existing profiles.
             _autoSwitchProfiles = new List<string> { _notAssignedLabel };
             _autoSwitchProfiles.AddRange(ProfileManager.GetProfiles());
-            _autoSwitchAssignments = DeviceProfileManager.GetAssignments();
 
+            // Start from previously-saved assignments only; live typing identifies/adds the rest.
+            // (Enumeration is not used: it surfaces virtual/synthetic keyboards the user never types
+            // on, and can miss the device seen at typing time on some machines.)
             _keyboardRows = new ObservableCollection<KeyboardAssignmentRow>();
-            foreach (DetectedKeyboard keyboard in RawInputDeviceEnumerator.EnumerateKeyboards())
+            foreach (DeviceAssignment saved in DeviceProfileManager.GetSavedAssignments())
             {
-                _keyboardRows.Add(BuildAssignmentRow(keyboard));
+                _keyboardRows.Add(new KeyboardAssignmentRow
+                {
+                    DevicePath = saved.Device,
+                    DisplayName = string.IsNullOrEmpty(saved.Name) ? saved.Device : saved.Name,
+                    Profiles = _autoSwitchProfiles,
+                    SelectedProfile = _autoSwitchProfiles.Contains(saved.Profile) ? saved.Profile : _notAssignedLabel,
+                });
             }
 
             KeyboardAssignmentsList.ItemsSource = _keyboardRows;
@@ -331,21 +338,9 @@ namespace KeyboardManagerEditorUI.Pages
 
             var toSave = _keyboardRows
                 .Where(r => !string.Equals(r.SelectedProfile, _notAssignedLabel, StringComparison.Ordinal))
-                .Select(r => new KeyValuePair<string, string>(r.DevicePath, r.SelectedProfile));
+                .Select(r => new DeviceAssignment { Device = r.DevicePath, Profile = r.SelectedProfile, Name = r.DisplayName });
 
             DeviceProfileManager.Save(AutoSwitchToggle.IsOn, toSave);
-        }
-
-        private KeyboardAssignmentRow BuildAssignmentRow(DetectedKeyboard keyboard)
-        {
-            _autoSwitchAssignments.TryGetValue(keyboard.DevicePath, out string? assigned);
-            return new KeyboardAssignmentRow
-            {
-                DisplayName = keyboard.DisplayName,
-                DevicePath = keyboard.DevicePath,
-                Profiles = _autoSwitchProfiles,
-                SelectedProfile = !string.IsNullOrEmpty(assigned) && _autoSwitchProfiles.Contains(assigned) ? assigned : _notAssignedLabel,
-            };
         }
 
         // Runs on the Raw Input watcher thread; marshal to the UI thread before touching rows.
@@ -366,14 +361,23 @@ namespace KeyboardManagerEditorUI.Pages
                     if (isMatch)
                     {
                         match = row;
+                        if (!string.IsNullOrEmpty(keyboard.DisplayName))
+                        {
+                            row.DisplayName = keyboard.DisplayName; // refresh a placeholder name once identified
+                        }
                     }
                 }
 
                 if (match == null)
                 {
-                    KeyboardAssignmentRow newRow = BuildAssignmentRow(keyboard);
-                    newRow.IsTyping = true;
-                    _keyboardRows.Add(newRow);
+                    _keyboardRows.Add(new KeyboardAssignmentRow
+                    {
+                        DevicePath = keyboard.DevicePath,
+                        DisplayName = keyboard.DisplayName,
+                        Profiles = _autoSwitchProfiles,
+                        SelectedProfile = _notAssignedLabel,
+                        IsTyping = true,
+                    });
                 }
             });
         }

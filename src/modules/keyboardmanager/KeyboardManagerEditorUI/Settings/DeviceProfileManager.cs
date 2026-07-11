@@ -44,30 +44,27 @@ namespace KeyboardManagerEditorUI.Settings
             public string Device { get; set; } = string.Empty;
 
             public string Profile { get; set; } = string.Empty;
+
+            // Display name only; the engine ignores this field.
+            public string Name { get; set; } = string.Empty;
         }
 
         public static bool GetAutoSwitchEnabled() => Load().AutoSwitchEnabled;
 
-        /// <summary>Returns the device-path → profile-name assignments.</summary>
-        public static IReadOnlyDictionary<string, string> GetAssignments()
+        /// <summary>Returns the saved keyboard→profile assignments (with display names).</summary>
+        public static IReadOnlyList<DeviceAssignment> GetSavedAssignments()
         {
-            var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            foreach (DeviceProfileEntry entry in Load().Map)
-            {
-                if (!string.IsNullOrEmpty(entry.Device) && !string.IsNullOrEmpty(entry.Profile))
-                {
-                    map[entry.Device] = entry.Profile;
-                }
-            }
-
-            return map;
+            return Load().Map
+                .Where(e => !string.IsNullOrEmpty(e.Device) && !string.IsNullOrEmpty(e.Profile))
+                .Select(e => new DeviceAssignment { Device = e.Device, Profile = e.Profile, Name = e.Name })
+                .ToList();
         }
 
         /// <summary>
-        /// Persists the auto-switch flag and assignments (device path → profile), then signals the
-        /// engine to reload. Assignments with an empty profile are dropped (unassigned keyboards).
+        /// Persists the auto-switch flag and assignments, then signals the engine to reload.
+        /// Assignments with an empty device or profile are dropped (unassigned keyboards).
         /// </summary>
-        public static bool Save(bool autoSwitchEnabled, IEnumerable<KeyValuePair<string, string>> assignments)
+        public static bool Save(bool autoSwitchEnabled, IEnumerable<DeviceAssignment> assignments)
         {
             try
             {
@@ -75,8 +72,8 @@ namespace KeyboardManagerEditorUI.Settings
                 {
                     AutoSwitchEnabled = autoSwitchEnabled,
                     Map = assignments
-                        .Where(a => !string.IsNullOrEmpty(a.Key) && !string.IsNullOrEmpty(a.Value))
-                        .Select(a => new DeviceProfileEntry { Device = a.Key, Profile = a.Value })
+                        .Where(a => !string.IsNullOrEmpty(a.Device) && !string.IsNullOrEmpty(a.Profile))
+                        .Select(a => new DeviceProfileEntry { Device = a.Device, Profile = a.Profile, Name = a.Name })
                         .ToList(),
                 };
 

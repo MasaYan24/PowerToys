@@ -726,7 +726,7 @@
                                         <TextBlock
                                             Grid.Column="1"
                                             VerticalAlignment="Center"
-                                            Text="{x:Bind DisplayName}"
+                                            Text="{x:Bind DisplayName, Mode=OneWay}"
                                             TextTrimming="CharacterEllipsis" />
                                         <ComboBox
                                             Grid.Column="2"

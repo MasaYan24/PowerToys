@@ -11,8 +11,20 @@ namespace KeyboardManagerEditorUI.Helpers
     public sealed class KeyboardAssignmentRow : INotifyPropertyChanged
     {
         private bool _isTyping;
+        private string _displayName = string.Empty;
 
-        public string DisplayName { get; set; } = string.Empty;
+        public string DisplayName
+        {
+            get => _displayName;
+            set
+            {
+                if (_displayName != value)
+                {
+                    _displayName = value;
+                    PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(DisplayName)));
+                }
+            }
+        }
 
         public string DevicePath { get; set; } = string.Empty;
 
