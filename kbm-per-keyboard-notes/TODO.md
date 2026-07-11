@@ -46,8 +46,9 @@
 - [ ] **★再開ポイント: 正規化修正(d30f25ea6)を実機で再検証**（Apple⇔2台目を何度往復しても確実に切り替わるか）
       手順: 安定版停止→dev エンジン起動→mac.json/deviceProfiles.json 用意→自動切替 ON→往復テスト（KNOWLEDGE.md 参照）
 - [ ] 検証OK後: `[autosw]` 診断 trace を削除
-- [ ] Increment 3: エディタ UI（検出キーボード一覧＋device→profile 割当＋自動切替 ON/OFF トグル→deviceProfiles.json 書込＋signal）
+- [x] **Increment 3 完成 ✅**: エディタ「Auto-switch」ダイアログ（打鍵で識別＝RawInputWatcher、実際に使うキーボードのみ表示、device→profile 割当、自動切替トグル、名前保存）→ `deviceProfiles.json` を正規化パスで書込＋engine signal。実機で正しい JSON 出力を確認
 - [ ] SPEC §7 に「同一モデル2台は正規化で同一視」の制約を追記
+- [ ] （環境依存）この PC は Target_KIP 仮想層で交互使用時の個別判別が不安定 → 通常の物理2キーボードでは安定見込み（KNOWLEDGE.md）
 
 ## Phase 3.5: MVP 後の磨き込み
 - [ ] dev 起動を簡単化（DLL を WinUI3Apps へコピー or 起動スクリプト）※製品版は不要
