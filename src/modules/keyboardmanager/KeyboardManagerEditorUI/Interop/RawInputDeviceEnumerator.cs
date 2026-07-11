@@ -95,23 +95,13 @@ namespace KeyboardManagerEditorUI.Interop
                         continue;
                     }
 
-                    string fullPath = GetDeviceName(list[i].HDevice);
-                    if (string.IsNullOrEmpty(fullPath))
+                    DetectedKeyboard? keyboard = DescribeDevice(list[i].HDevice);
+                    if (keyboard is null || !seen.Add(keyboard.DevicePath))
                     {
-                        continue;
+                        continue; // unreadable, or already listed (one entry per physical device)
                     }
 
-                    string normalized = NormalizeDevicePath(fullPath);
-                    if (!seen.Add(normalized))
-                    {
-                        continue; // one entry per physical device
-                    }
-
-                    result.Add(new DetectedKeyboard
-                    {
-                        DevicePath = normalized,
-                        DisplayName = BuildDisplayName(fullPath),
-                    });
+                    result.Add(keyboard);
                 }
             }
             catch (Exception ex)
@@ -120,6 +110,25 @@ namespace KeyboardManagerEditorUI.Interop
             }
 
             return result;
+        }
+
+        /// <summary>
+        /// Describes a raw-input device handle (as delivered with WM_INPUT) as a keyboard entry, or
+        /// null if its name can't be read. Used to identify the keyboard a live keystroke came from.
+        /// </summary>
+        public static DetectedKeyboard? DescribeDevice(IntPtr hDevice)
+        {
+            string fullPath = GetDeviceName(hDevice);
+            if (string.IsNullOrEmpty(fullPath))
+            {
+                return null;
+            }
+
+            return new DetectedKeyboard
+            {
+                DevicePath = NormalizeDevicePath(fullPath),
+                DisplayName = BuildDisplayName(fullPath),
+            };
         }
 
         private static string GetDeviceName(IntPtr hDevice)

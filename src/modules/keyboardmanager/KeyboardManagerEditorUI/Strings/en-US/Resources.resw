@@ -567,4 +567,7 @@
   <data name="AutoSwitch_NotAssigned" xml:space="preserve">
     <value>(not assigned)</value>
   </data>
+  <data name="AutoSwitchIdentifyHint.Title" xml:space="preserve">
+    <value>Press a key on a keyboard to highlight its row (and add it if it isn't listed).</value>
+  </data>
 </root>

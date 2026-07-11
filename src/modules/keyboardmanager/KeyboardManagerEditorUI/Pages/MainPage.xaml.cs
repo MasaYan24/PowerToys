@@ -42,6 +42,11 @@ namespace KeyboardManagerEditorUI.Pages
         private string _mappingState = "Empty";
         private bool _isServiceRunning = true;
         private bool _suppressProfileSelection;
+        private RawInputWatcher? _autoSwitchWatcher;
+        private ObservableCollection<KeyboardAssignmentRow>? _keyboardRows;
+        private List<string> _autoSwitchProfiles = new();
+        private IReadOnlyDictionary<string, string> _autoSwitchAssignments = new Dictionary<string, string>();
+        private string _notAssignedLabel = string.Empty;
 
         public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -287,40 +292,90 @@ namespace KeyboardManagerEditorUI.Pages
 
         private async void AutoSwitchBtn_Click(object sender, RoutedEventArgs e)
         {
-            string notAssigned = ResourceHelper.GetString("AutoSwitch_NotAssigned");
+            _notAssignedLabel = ResourceHelper.GetString("AutoSwitch_NotAssigned");
 
             // Available choices per keyboard: "(not assigned)" + existing profiles.
-            var profiles = new List<string> { notAssigned };
-            profiles.AddRange(ProfileManager.GetProfiles());
+            _autoSwitchProfiles = new List<string> { _notAssignedLabel };
+            _autoSwitchProfiles.AddRange(ProfileManager.GetProfiles());
+            _autoSwitchAssignments = DeviceProfileManager.GetAssignments();
 
-            IReadOnlyDictionary<string, string> assignments = DeviceProfileManager.GetAssignments();
-
-            var rows = new List<KeyboardAssignmentRow>();
+            _keyboardRows = new ObservableCollection<KeyboardAssignmentRow>();
             foreach (DetectedKeyboard keyboard in RawInputDeviceEnumerator.EnumerateKeyboards())
             {
-                assignments.TryGetValue(keyboard.DevicePath, out string? assigned);
-                rows.Add(new KeyboardAssignmentRow
-                {
-                    DisplayName = keyboard.DisplayName,
-                    DevicePath = keyboard.DevicePath,
-                    Profiles = profiles,
-                    SelectedProfile = !string.IsNullOrEmpty(assigned) && profiles.Contains(assigned) ? assigned : notAssigned,
-                });
+                _keyboardRows.Add(BuildAssignmentRow(keyboard));
             }
 
-            KeyboardAssignmentsList.ItemsSource = rows;
+            KeyboardAssignmentsList.ItemsSource = _keyboardRows;
             AutoSwitchToggle.IsOn = DeviceProfileManager.GetAutoSwitchEnabled();
 
-            if (await AutoSwitchDialog.ShowAsync() != ContentDialogResult.Primary)
+            // Watch live keystrokes so the user can identify a keyboard by typing on it (and so a
+            // keyboard that only shows up at typing time — not in enumeration — still gets a row).
+            _autoSwitchWatcher = new RawInputWatcher(OnKeyboardTyped);
+            _autoSwitchWatcher.Start();
+
+            ContentDialogResult result;
+            try
+            {
+                result = await AutoSwitchDialog.ShowAsync();
+            }
+            finally
+            {
+                _autoSwitchWatcher.Stop();
+                _autoSwitchWatcher = null;
+            }
+
+            if (result != ContentDialogResult.Primary)
             {
                 return;
             }
 
-            var toSave = rows
-                .Where(r => !string.Equals(r.SelectedProfile, notAssigned, StringComparison.Ordinal))
+            var toSave = _keyboardRows
+                .Where(r => !string.Equals(r.SelectedProfile, _notAssignedLabel, StringComparison.Ordinal))
                 .Select(r => new KeyValuePair<string, string>(r.DevicePath, r.SelectedProfile));
 
             DeviceProfileManager.Save(AutoSwitchToggle.IsOn, toSave);
+        }
+
+        private KeyboardAssignmentRow BuildAssignmentRow(DetectedKeyboard keyboard)
+        {
+            _autoSwitchAssignments.TryGetValue(keyboard.DevicePath, out string? assigned);
+            return new KeyboardAssignmentRow
+            {
+                DisplayName = keyboard.DisplayName,
+                DevicePath = keyboard.DevicePath,
+                Profiles = _autoSwitchProfiles,
+                SelectedProfile = !string.IsNullOrEmpty(assigned) && _autoSwitchProfiles.Contains(assigned) ? assigned : _notAssignedLabel,
+            };
+        }
+
+        // Runs on the Raw Input watcher thread; marshal to the UI thread before touching rows.
+        private void OnKeyboardTyped(DetectedKeyboard keyboard)
+        {
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                if (_keyboardRows == null)
+                {
+                    return;
+                }
+
+                KeyboardAssignmentRow? match = null;
+                foreach (KeyboardAssignmentRow row in _keyboardRows)
+                {
+                    bool isMatch = string.Equals(row.DevicePath, keyboard.DevicePath, StringComparison.OrdinalIgnoreCase);
+                    row.IsTyping = isMatch;
+                    if (isMatch)
+                    {
+                        match = row;
+                    }
+                }
+
+                if (match == null)
+                {
+                    KeyboardAssignmentRow newRow = BuildAssignmentRow(keyboard);
+                    newRow.IsTyping = true;
+                    _keyboardRows.Add(newRow);
+                }
+            });
         }
 
         #endregion
