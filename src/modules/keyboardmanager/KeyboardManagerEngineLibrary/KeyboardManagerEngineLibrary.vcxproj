@@ -36,6 +36,7 @@
     <ClInclude Include="KeyboardEventHandlers.h" />
     <ClInclude Include="KeyboardManager.h" />
     <ClInclude Include="pch.h" />
+    <ClInclude Include="ProfileCycleHotkey.h" />
     <ClInclude Include="RawInputKeyboardTracker.h" />
     <ClInclude Include="State.h" />
     <ClInclude Include="trace.h" />
@@ -43,6 +44,7 @@
   <ItemGroup>
     <ClCompile Include="KeyboardEventHandlers.cpp" />
     <ClCompile Include="KeyboardManager.cpp" />
+    <ClCompile Include="ProfileCycleHotkey.cpp" />
     <ClCompile Include="RawInputKeyboardTracker.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader Condition="'$(UsePrecompiledHeaders)' != 'false'">Create</PrecompiledHeader>

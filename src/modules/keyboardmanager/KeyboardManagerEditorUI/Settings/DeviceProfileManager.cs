@@ -37,6 +37,10 @@ namespace KeyboardManagerEditorUI.Settings
             public bool AutoSwitchEnabled { get; set; }
 
             public List<DeviceProfileEntry> Map { get; set; } = new();
+
+            // The engine's profile-cycle hotkey definition. The editor doesn't own this (yet);
+            // keep it as a raw node so saving from the editor round-trips it unchanged.
+            public System.Text.Json.Nodes.JsonNode? CycleHotkey { get; set; }
         }
 
         private sealed class DeviceProfileEntry
@@ -75,6 +79,7 @@ namespace KeyboardManagerEditorUI.Settings
                         .Where(a => !string.IsNullOrEmpty(a.Device) && !string.IsNullOrEmpty(a.Profile))
                         .Select(a => new DeviceProfileEntry { Device = a.Device, Profile = a.Profile, Name = a.Name })
                         .ToList(),
+                    CycleHotkey = Load().CycleHotkey, // preserve the engine's hotkey definition
                 };
 
                 Directory.CreateDirectory(Path.GetDirectoryName(_filePath)!);

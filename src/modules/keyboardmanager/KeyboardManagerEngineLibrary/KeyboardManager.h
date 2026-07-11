@@ -10,6 +10,7 @@
 #include <keyboardmanager/common/Input.h>
 #include "State.h"
 #include "RawInputKeyboardTracker.h"
+#include "ProfileCycleHotkey.h"
 
 class KeyboardManager
 {
@@ -21,10 +22,15 @@ public:
 
     ~KeyboardManager()
     {
-        // Stop the tracker first so its thread can't call back into a half-destroyed object.
+        // Stop the worker threads first so they can't call back into a half-destroyed object.
         if (rawInputTracker)
         {
             rawInputTracker->Stop();
+        }
+
+        if (profileCycleHotkey)
+        {
+            profileCycleHotkey->Stop();
         }
 
         if (editorIsRunningEvent)
@@ -71,15 +77,25 @@ private:
     // Detects which physical keyboard is being typed on, for per-keyboard profile auto-switching.
     std::unique_ptr<RawInputKeyboardTracker> rawInputTracker;
 
+    // Global hotkey that cycles through the profiles (definition in deviceProfiles.json).
+    std::unique_ptr<ProfileCycleHotkey> profileCycleHotkey;
+
+    // Serializes profile switches (tracker thread and hotkey thread both call SwitchActiveProfile).
+    std::mutex switchProfileMutex;
+
     // Called (on the tracker thread) for each raw keyboard event.
     void OnRawKeyEvent(const RawInputKeyboardTracker::KeyEvent& keyEvent);
 
-    // Reload the device->profile map and the auto-switch enable flag from deviceProfiles.json.
+    // Reload the device->profile map, the auto-switch enable flag, and the cycle-hotkey
+    // definition from deviceProfiles.json.
     void LoadDeviceProfiles();
 
     // Make the given profile active by writing settings.json + signaling the settings-changed
     // event, so the existing reload path applies it (avoids a second thread mutating `state`).
     void SwitchActiveProfile(const std::wstring& profile);
+
+    // Advance to the next profile in settings.json's keyboardConfigurations list (hotkey action).
+    void CycleActiveProfile();
 
     // Number of consecutive clean keystrokes on a keyboard before its profile is auto-selected
     // (hysteresis to avoid thrashing when two keyboards are used in quick alternation).

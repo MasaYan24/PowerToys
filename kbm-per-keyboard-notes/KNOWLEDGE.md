@@ -9,6 +9,31 @@
 - 抑制が不要な「レイアウト/プロファイル自動切替」なら Raw Input のみで現実的（#12349 の方向）。
 - デバイス識別子: VID/PID は“モデル”単位。同型2台の区別にはシリアル or デバイスパスが要る。BT はシリアル欠落することあり。
 
+## 深掘り最終結論（2026-07-12）— 自動切替の全謎が解けた
+
+- **最重要: LL フックが抑制（suppress）したキーは Raw Input に届かない。**
+  決定的実験: Apple 8×5 + TC 8×5 + Enter の11打鍵中、エンジンに届いたのは 3打鍵のみ
+  （default で押した Apple の 8×2 と、remap されていない Enter）。mac(8→9) が有効になった後の
+  `8` は全て KBM 自身のフックが抑制 → Raw Input に不可視 → 自動切替の判定材料にならない。
+  - 帰結: **「アクティブプロファイルで remap されたキーだけを叩く」限り切替は原理的に発火しない**。
+    通常のタイピング（大半のキーは remap されていない）では2打で確実に発火（`qwe8` テストで実証）。
+  - 過去の「戻らない」「たまに戻る」は全てこれで説明がつく（a→b テストで 'a' だけ叩いていた）。
+- **修飾キー（Shift/Ctrl/Alt/Win）はヒステリシスから除外する**（実装済み）。
+  ホットキーチョード自身の Shift↓Alt↓ が自動切替のカウントに入り、巡回切替と喧嘩して
+  「余分な切替」が起きた（9898 のはずが 99899899）。修飾キー除外で完全解消（98989898 を実証）。
+- **ホットキー巡回切替 実装・実証済み**: `deviceProfiles.json` の `cycleHotkey`（{win,ctrl,alt,shift,code}）。
+  `ProfileCycleHotkey`（専用スレッド+隠しウィンドウ+RegisterHotKey+MOD_NOREPEAT）→ `CycleActiveProfile()` が
+  keyboardConfigurations を巡回 → 既存 SwitchActiveProfile 経路＋MessageBeep。未定義なら無効（安全）。
+  エディタの DeviceProfileManager は cycleHotkey を JsonNode でラウンドトリップ保持（Save で消さない）。
+- **⚠️ dev エンジン（alone 未対応）×日常 default.json の危険**: `162→26 (condition:alone)` を
+  「無条件 remap」と誤解釈 → Ctrl(=CapsLock も) を保持すると up イベント不整合で **OS の Ctrl がスタック**
+  （要再起動）。dev エンジンでのテスト中は Ctrl/CapsLock/Win 刻印キーの保持を避けること。
+  alone ブランチと統合すれば解消。
+- **この PC は registry Scancode Map で modifier を入替済み**（全キーボード共通・ドライバレベル）:
+  CapsLock→LCtrl / Ctrl(L)→LWin / Win(L)→LCtrl / Ctrl(R)→RWin / Win(R)→RCtrl / Menu→RCtrl。Alt は無変更。
+  Raw Input は Scancode Map 適用後の VK を見るので、検出・ホットキーとも整合する。
+- 長押し（オートリピート）は Raw Input には1打鍵（HID レポートは press 1回のみ）。連打テストは「トントン」で。
+
 ## 自動切替（エンジン Raw Input）実機テストで判明したこと（2026-07-11）
 
 - **デバイスパスは必ずしも安定ではない（重要）**: 仮想プロバイダ系キーボード（実機の2台目 = `Target_KIP&Category_HID`）は

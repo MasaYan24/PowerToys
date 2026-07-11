@@ -102,14 +102,48 @@ KeyboardManager::KeyboardManager()
     rawInputTracker = std::make_unique<RawInputKeyboardTracker>(
         [this](const RawInputKeyboardTracker::KeyEvent& keyEvent) { OnRawKeyEvent(keyEvent); });
     rawInputTracker->Start();
+
+    // Global profile-cycle hotkey. Re-read the config so the definition parsed before this object
+    // existed is applied (LoadDeviceProfiles guards on the pointer).
+    profileCycleHotkey = std::make_unique<ProfileCycleHotkey>([this] { CycleActiveProfile(); });
+    profileCycleHotkey->Start();
+    LoadDeviceProfiles();
 }
 
 void KeyboardManager::OnRawKeyEvent(const RawInputKeyboardTracker::KeyEvent& keyEvent)
 {
-    // Ignore injected input (hDevice == NULL, incl. KBM's own remap output); decide on key-down
-    // only; and skip keys we can't attribute to a physical keyboard.
-    if (keyEvent.injected || !keyEvent.keyDown || keyEvent.devicePath.empty())
+    // Ignore injected input (hDevice == NULL, incl. KBM's own remap output) and key-ups.
+    if (keyEvent.injected || !keyEvent.keyDown)
     {
+        return;
+    }
+
+    // Ignore modifier keys: they lead every chord (including the profile-cycle hotkey, whose own
+    // Shift/Alt key-downs would otherwise feed the hysteresis and fight the cycle), and a lone
+    // modifier is weak evidence that the user moved to this keyboard.
+    switch (keyEvent.vkey)
+    {
+    case VK_SHIFT:
+    case VK_CONTROL:
+    case VK_MENU:
+    case VK_LSHIFT:
+    case VK_RSHIFT:
+    case VK_LCONTROL:
+    case VK_RCONTROL:
+    case VK_LMENU:
+    case VK_RMENU:
+    case VK_LWIN:
+    case VK_RWIN:
+        return;
+    default:
+        break;
+    }
+
+    // A physical keystroke whose device path can't be resolved (observed on Surface Type Cover
+    // right after idle, when its KIP device node re-enumerates). Log it so drops are visible.
+    if (keyEvent.devicePath.empty())
+    {
+        Logger::trace(L"[autosw] keydown vk=0x{:x} with unresolvable device — skipped", keyEvent.vkey);
         return;
     }
 
@@ -143,13 +177,6 @@ void KeyboardManager::OnRawKeyEvent(const RawInputKeyboardTracker::KeyEvent& key
         std::lock_guard<std::mutex> lock(activeProfileMutex);
         current = activeProfileName;
     }
-
-    Logger::trace(L"[autosw] target='{}' current='{}' pending='{}'x{} requested='{}'",
-                  target,
-                  current,
-                  pendingTarget,
-                  pendingCount,
-                  requestedProfile);
 
     if (target == current)
     {
@@ -192,6 +219,8 @@ void KeyboardManager::LoadDeviceProfiles()
 {
     bool enabled = false;
     std::unordered_map<std::wstring, std::wstring> map;
+    UINT hotkeyModifiers = 0;
+    UINT hotkeyVk = 0;
 
     try
     {
@@ -219,6 +248,28 @@ void KeyboardManager::LoadDeviceProfiles()
                     }
                 }
             }
+
+            if (obj.HasKey(L"cycleHotkey"))
+            {
+                const auto hotkey = obj.GetNamedObject(L"cycleHotkey");
+                hotkeyVk = static_cast<UINT>(hotkey.GetNamedNumber(L"code", 0));
+                if (hotkey.GetNamedBoolean(L"win", false))
+                {
+                    hotkeyModifiers |= MOD_WIN;
+                }
+                if (hotkey.GetNamedBoolean(L"ctrl", false))
+                {
+                    hotkeyModifiers |= MOD_CONTROL;
+                }
+                if (hotkey.GetNamedBoolean(L"alt", false))
+                {
+                    hotkeyModifiers |= MOD_ALT;
+                }
+                if (hotkey.GetNamedBoolean(L"shift", false))
+                {
+                    hotkeyModifiers |= MOD_SHIFT;
+                }
+            }
         }
     }
     catch (...)
@@ -232,10 +283,70 @@ void KeyboardManager::LoadDeviceProfiles()
     }
 
     autoSwitchEnabled.store(enabled);
+
+    if (profileCycleHotkey)
+    {
+        profileCycleHotkey->Update(hotkeyModifiers, hotkeyVk);
+    }
+}
+
+void KeyboardManager::CycleActiveProfile()
+{
+    try
+    {
+        const auto path = PTSettingsHelper::get_module_save_folder_location(moduleName) + L"\\settings.json";
+        auto parsed = json::from_file(path);
+        if (!parsed.has_value())
+        {
+            return;
+        }
+
+        const auto properties = parsed.value().GetNamedObject(L"properties");
+        const std::wstring current{ properties.GetNamedObject(KeyboardManagerConstants::ActiveConfigurationSettingName).GetNamedString(L"value", KeyboardManagerConstants::DefaultConfiguration) };
+
+        std::vector<std::wstring> profiles;
+        if (properties.HasKey(L"keyboardConfigurations"))
+        {
+            const auto arr = properties.GetNamedObject(L"keyboardConfigurations").GetNamedArray(L"value");
+            for (uint32_t i = 0; i < arr.Size(); ++i)
+            {
+                profiles.emplace_back(arr.GetStringAt(i));
+            }
+        }
+
+        if (profiles.size() < 2)
+        {
+            return; // nothing to cycle to
+        }
+
+        size_t currentIndex = 0;
+        for (size_t i = 0; i < profiles.size(); ++i)
+        {
+            if (profiles[i] == current)
+            {
+                currentIndex = i;
+                break;
+            }
+        }
+
+        const std::wstring& next = profiles[(currentIndex + 1) % profiles.size()];
+        Logger::trace(L"CycleActiveProfile: '{}' -> '{}'", current, next);
+        SwitchActiveProfile(next);
+
+        // Audible feedback that the profile changed (no UI surface in the engine).
+        MessageBeep(MB_OK);
+    }
+    catch (...)
+    {
+        Logger::error(L"CycleActiveProfile failed");
+    }
 }
 
 void KeyboardManager::SwitchActiveProfile(const std::wstring& profile)
 {
+    // Tracker thread and hotkey thread can both land here; serialize the read-modify-write.
+    std::lock_guard<std::mutex> lock(switchProfileMutex);
+
     try
     {
         const auto path = PTSettingsHelper::get_module_save_folder_location(moduleName) + L"\\settings.json";

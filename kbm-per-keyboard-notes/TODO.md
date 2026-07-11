@@ -43,14 +43,17 @@
 - [x] Increment 2: 自動切替ポリシー（NULL無視／ヒステリシス／device→profile map／settings書換+signal で切替）
 - [x] 実機テスト（安定版停止→dev エンジン）: **切替は動作を確認**（Apple→mac / 2台目→default の Auto-switch 記録）
 - [x] バグ修正: (a) 仮想デバイスの**インスタンスID 揺れ**→パス正規化(`NormalizeDevicePath`)、(b) pressedKeys 枯れず永久ブロック→defer 撤去
-- [ ] **★再開ポイント: 正規化修正(d30f25ea6)を実機で再検証**（Apple⇔2台目を何度往復しても確実に切り替わるか）
-      手順: 安定版停止→dev エンジン起動→mac.json/deviceProfiles.json 用意→自動切替 ON→往復テスト（KNOWLEDGE.md 参照）
-- [ ] 検証OK後: `[autosw]` 診断 trace を削除
+- [x] **★正規化修正の実機再検証 完了 ✅**（帰属はクリーン。Apple⇔TC 往復切替を複数回実証）
+- [x] `[autosw]`/`[diag]` 診断 trace 削除（最終ビルド緑）
 - [x] **Increment 3 完成 ✅**: エディタ「Auto-switch」ダイアログ（打鍵で識別＝RawInputWatcher、実際に使うキーボードのみ表示、device→profile 割当、自動切替トグル、名前保存）→ `deviceProfiles.json` を正規化パスで書込＋engine signal。実機で正しい JSON 出力を確認
-- [ ] SPEC §7 に「同一モデル2台は正規化で同一視」の制約を追記
-- [ ] （環境依存）この PC は Target_KIP 仮想層で交互使用時の個別判別が不安定 → 通常の物理2キーボードでは安定見込み（KNOWLEDGE.md）
+- [x] **深掘り完了・根本原因特定 ✅（2026-07-12）**: 抑制キーは Raw Input 不可視（Windows パイプライン制約）。
+      通常タイピングでは2打で確実に切替（`qwe8` 実証）。修飾キーをヒステリシスから除外（ホットキーとの干渉解消）。SPEC §7 に制約記録済み
+- [x] **ホットキー巡回切替 実装・実証 ✅**: `ProfileCycleHotkey`＋`CycleActiveProfile`＋`cycleHotkey` 設定。`98989898` の完全交互を実機確認
+- [ ] SPEC §7 に「同一モデル2台は正規化で同一視」の制約を追記（微修正）
 
 ## Phase 3.5: MVP 後の磨き込み
+- [ ] エディタにホットキー設定 UI（現状 cycleHotkey は deviceProfiles.json 手書き。編集時ラウンドトリップ保持は実装済み）
+- [ ] 切替時の視覚フィードバック（トレイ/トースト。現状はビープのみ）
 - [ ] dev 起動を簡単化（DLL を WinUI3Apps へコピー or 起動スクリプト）※製品版は不要
 - [ ] 新規作成の名前バリデーションを UI にインライン表示（現状は失敗時 log のみ）
 - [ ] プロファイル改名機能
@@ -58,6 +61,7 @@
 - [ ] editorSettings.json(default)→プロファイル cache の後方互換を実機確認
 - [ ] defer-while-held を GetAsyncKeyState で堅牢に再実装（撤去済みのため）
 - [ ] 単体テスト / devdocs 追記
+- [ ] **alone/tap ブランチとの統合**（重要: dev エンジン単体は alone 設定を誤解釈して Ctrl スタックの危険 → KNOWLEDGE.md）
 
 ## Phase 4: コントリビュート（ブロッカー: CLA / 会社 IP 判断）
 - [ ] #12349 に設計コメント / 実装意向を投稿
