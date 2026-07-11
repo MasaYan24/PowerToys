@@ -543,4 +543,28 @@
   <data name="DeleteProfileDialogContent.Text" xml:space="preserve">
     <value>This permanently deletes the selected profile and all of its mappings. This cannot be undone.</value>
   </data>
+  <data name="AutoSwitchBtn_Text.Text" xml:space="preserve">
+    <value>Auto-switch</value>
+  </data>
+  <data name="AutoSwitchDialog.Title" xml:space="preserve">
+    <value>Per-keyboard auto-switch</value>
+  </data>
+  <data name="AutoSwitchDialog.PrimaryButtonText" xml:space="preserve">
+    <value>Save</value>
+  </data>
+  <data name="AutoSwitchDialog.CloseButtonText" xml:space="preserve">
+    <value>Cancel</value>
+  </data>
+  <data name="AutoSwitchToggle.Header" xml:space="preserve">
+    <value>Automatically switch the active profile based on the keyboard being used</value>
+  </data>
+  <data name="AutoSwitchKeyboardsHeader.Text" xml:space="preserve">
+    <value>Assign a profile to each keyboard</value>
+  </data>
+  <data name="AutoSwitchHint.Text" xml:space="preserve">
+    <value>When enabled, typing on a keyboard switches to its assigned profile. Unassigned keyboards keep the current profile. Note: some virtual/remote input layers may prevent reliable per-keyboard detection.</value>
+  </data>
+  <data name="AutoSwitch_NotAssigned" xml:space="preserve">
+    <value>(not assigned)</value>
+  </data>
 </root>

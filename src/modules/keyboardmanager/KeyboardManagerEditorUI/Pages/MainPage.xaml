@@ -128,6 +128,12 @@
                                 <TextBlock x:Uid="DeleteProfileBtnTooltip" />
                             </ToolTipService.ToolTip>
                         </Button>
+                        <Button x:Name="AutoSwitchBtn" Click="AutoSwitchBtn_Click">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <FontIcon FontSize="14" Glyph="&#xE765;" />
+                                <TextBlock x:Uid="AutoSwitchBtn_Text" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
                     </StackPanel>
                     <Button
                         x:Name="NewRemappingBtn"
@@ -686,6 +692,43 @@
                     x:Uid="DeleteProfileDialog"
                     DefaultButton="Close">
                     <TextBlock x:Uid="DeleteProfileDialogContent" TextWrapping="Wrap" />
+                </ContentDialog>
+
+                <!--  Dialog for per-keyboard auto-switch settings  -->
+                <ContentDialog
+                    x:Name="AutoSwitchDialog"
+                    x:Uid="AutoSwitchDialog"
+                    DefaultButton="Primary">
+                    <StackPanel MinWidth="460" Spacing="12">
+                        <ToggleSwitch x:Name="AutoSwitchToggle" x:Uid="AutoSwitchToggle" />
+                        <TextBlock x:Uid="AutoSwitchKeyboardsHeader" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                        <ItemsControl x:Name="KeyboardAssignmentsList">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="helper:KeyboardAssignmentRow">
+                                    <Grid Margin="0,4" ColumnSpacing="12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock
+                                            VerticalAlignment="Center"
+                                            Text="{x:Bind DisplayName}"
+                                            TextTrimming="CharacterEllipsis" />
+                                        <ComboBox
+                                            Grid.Column="1"
+                                            MinWidth="150"
+                                            ItemsSource="{x:Bind Profiles}"
+                                            SelectedItem="{x:Bind SelectedProfile, Mode=TwoWay}" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock
+                            x:Uid="AutoSwitchHint"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                            Style="{StaticResource CaptionTextBlockStyle}"
+                            TextWrapping="Wrap" />
+                    </StackPanel>
                 </ContentDialog>
             </Grid>
         </ContentControl>

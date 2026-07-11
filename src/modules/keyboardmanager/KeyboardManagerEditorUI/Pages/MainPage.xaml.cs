@@ -285,6 +285,44 @@ namespace KeyboardManagerEditorUI.Pages
             }
         }
 
+        private async void AutoSwitchBtn_Click(object sender, RoutedEventArgs e)
+        {
+            string notAssigned = ResourceHelper.GetString("AutoSwitch_NotAssigned");
+
+            // Available choices per keyboard: "(not assigned)" + existing profiles.
+            var profiles = new List<string> { notAssigned };
+            profiles.AddRange(ProfileManager.GetProfiles());
+
+            IReadOnlyDictionary<string, string> assignments = DeviceProfileManager.GetAssignments();
+
+            var rows = new List<KeyboardAssignmentRow>();
+            foreach (DetectedKeyboard keyboard in RawInputDeviceEnumerator.EnumerateKeyboards())
+            {
+                assignments.TryGetValue(keyboard.DevicePath, out string? assigned);
+                rows.Add(new KeyboardAssignmentRow
+                {
+                    DisplayName = keyboard.DisplayName,
+                    DevicePath = keyboard.DevicePath,
+                    Profiles = profiles,
+                    SelectedProfile = !string.IsNullOrEmpty(assigned) && profiles.Contains(assigned) ? assigned : notAssigned,
+                });
+            }
+
+            KeyboardAssignmentsList.ItemsSource = rows;
+            AutoSwitchToggle.IsOn = DeviceProfileManager.GetAutoSwitchEnabled();
+
+            if (await AutoSwitchDialog.ShowAsync() != ContentDialogResult.Primary)
+            {
+                return;
+            }
+
+            var toSave = rows
+                .Where(r => !string.Equals(r.SelectedProfile, notAssigned, StringComparison.Ordinal))
+                .Select(r => new KeyValuePair<string, string>(r.DevicePath, r.SelectedProfile));
+
+            DeviceProfileManager.Save(AutoSwitchToggle.IsOn, toSave);
+        }
+
         #endregion
 
         #region Dialog Show Methods
