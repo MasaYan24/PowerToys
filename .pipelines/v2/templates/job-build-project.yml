@@ -239,9 +239,9 @@ jobs:
       displayName: 'Cache nuget packages (PackageReference)'
       inputs:
         key: '"PackageReference" | "$(Agent.OS)" | Directory.Packages.props'
-        restoreKeys: |
-           "PackageReference" | "$(Agent.OS)"
-           "PackageReference"
+        # No restoreKeys: a partial restore of an older cache is saved back under the new key with
+        # the new packages added, so the cache only grows (it had reached ~46 GB vs ~3.5 GB needed).
+        # On a key miss, restore from the feeds once and cache just the current package set.
         path: $(NUGET_PACKAGES)
 
     - task: Cache@2
